@@ -69,9 +69,26 @@ python manage.py runserver 0.0.0.0:8000
 ```
 Visit **`http://localhost:8000`** to start chatting.
 
+Visit **`http://localhost:8000`** to start chatting.
+
+---
+
+## Render Deployment Guide (Web Only)
+
+This project is currently configured for a **Lean Web Deployment** (GGUF model files are excluded to keep the deployment under 100MB). It is intended for UI/Frontend demonstration.
+
+### 1. Configuration (Render Dashboard)
+- **Runtime**: Python 3.10+
+- **Build Command**: `./render_build.sh`
+- **Start Command**: `./render_start.sh`
+
+### 2. Setup Scripts
+- **`render_build.sh`**: Installs Python requirements and creates an empty `llm/` directory.
+- **`render_start.sh`**: Starts the Django app using `gunicorn`. Inference server is **NOT** started to save RAM.
+
 ---
 
 ## Technical Details
-- **Architecture**: Django acts as a streaming proxy. It receives requests from the frontend, calls the local `llama-server` API, and streams the response back to the browser.
-- **Reasoning**: The backend automatically detects reasoning tokens from models like Qwen and wraps them in `<think>` tags for the frontend UI.
-- **Vision**: Multimodal images are sent as base64 data to the inference server.
+- **Architecture**: Django acts as a streaming proxy. It handles frontend requests, calls the local C++ `llama-server` API on port 8081, and streams tokens to the UI.
+- **Reasoning**: The backend detects `reasoning_content` from the server and wraps it in `<think>` tags for the UI's collapsible thoughts.
+- **Multimodal Support**: Base64 images are processed through the Llava-compatible `--mmproj` handler.
