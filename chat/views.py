@@ -8,10 +8,7 @@ from django.http import StreamingHttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-LLM_DIR = os.path.join(BASE_DIR, "llm")
-
-from .llm import get_text_model, get_vision_model
+import requests
 
 def index(request):
     return render(request, "chat/index.html")
@@ -57,34 +54,62 @@ def chat_api(request):
 
     messages = _build_messages(query, image_b64)
 
+    server_url = "http://localhost:8081/v1/chat/completions"
+    
+    payload = {
+        "messages": messages,
+        "stream": True,
+        "max_tokens": 2048,
+        "temperature": 0.7,
+    }
+
     def event_stream():
+        in_thinking_state = False
         try:
-            if image_b64:
-                llm = get_vision_model()
-                if not llm:
-                    raise Exception("Vision model failed to load")
-            else:
-                llm = get_text_model()
-                if not llm:
-                    raise Exception("Text model failed to load")
+            with requests.post(server_url, json=payload, stream=True, timeout=120) as r:
+                r.raise_for_status()
+                for line in r.iter_lines():
+                    if line:
+                        decoded_line = line.decode('utf-8')
+                        if decoded_line.startswith('data: '):
+                            data_str = decoded_line[6:].strip()
+                            if data_str == "[DONE]":
+                                if in_thinking_state:
+                                    yield f"data: {json.dumps({'token': '</think>'})}\n\n"
+                                yield "data: [DONE]\n\n"
+                                break
+                            
+                            try:
+                                chunk = json.loads(data_str)
+                                delta = chunk.get("choices", [{}])[0].get("delta", {})
+                                
+                                reasoning = delta.get("reasoning_content", "")
+                                content = delta.get("content", "")
+                                
+                                response_tokens = []
+                                
+                                # If we get reasoning content, make sure we are inside <think> tags
+                                if reasoning:
+                                    if not in_thinking_state:
+                                        response_tokens.append("<think>")
+                                        in_thinking_state = True
+                                    response_tokens.append(reasoning)
+                                
+                                # If we get normal content but were in thinking mode, close it
+                                if content:
+                                    if in_thinking_state:
+                                        response_tokens.append("</think>")
+                                        in_thinking_state = False
+                                    response_tokens.append(content)
+                                
+                                for token in response_tokens:
+                                    yield f"data: {json.dumps({'token': token})}\n\n"
+                                    
+                            except json.JSONDecodeError:
+                                continue
 
-            response = llm.create_chat_completion(
-                messages=messages,
-                stream=True,
-                max_tokens=2048,
-                temperature=0.7,
-            )
-
-            for chunk in response:
-                delta = chunk.get("choices", [{}])[0].get("delta", {})
-                text = delta.get("content", "")
-                if text:
-                    data = json.dumps({"token": text})
-                    yield f"data: {data}\n\n"
-
-            yield "data: [DONE]\n\n"
         except Exception as e:
-            error_data = json.dumps({"error": str(e)})
+            error_data = json.dumps({"error": f"Llama-server error: {str(e)}"})
             yield f"data: {error_data}\n\n"
             yield "data: [DONE]\n\n"
 
