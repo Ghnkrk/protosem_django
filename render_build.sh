@@ -4,5 +4,8 @@
 # Install Python dependencies
 pip install -r requirements.txt
 
-# Create models folder (empty) to avoid file-not-found errors if still referenced
+# Create models folder
 mkdir -p llm
+
+# Collect static files during build
+python manage.py collectstatic --noinput

@@ -79,12 +79,21 @@ This project is currently configured for a **Lean Web Deployment** (GGUF model f
 
 ### 1. Configuration (Render Dashboard)
 - **Runtime**: Python 3.10+
-- **Build Command**: `./render_build.sh`
-- **Start Command**: `./render_start.sh`
+- **Build Command**: `bash render_build.sh`
+- **Start Command**: `bash render_start.sh`
 
-### 2. Setup Scripts
-- **`render_build.sh`**: Installs Python requirements and creates an empty `llm/` directory.
-- **`render_start.sh`**: Starts the Django app using `gunicorn`. Inference server is **NOT** started to save RAM.
+### 2. Deployment Script Details
+- **`render_build.sh`**: Installs requirements, creates the `llm/` folder, and handles static file preparations.
+- **`render_start.sh`**: Runs migrations, collects static files via WhiteNoise, and launches **Gunicorn** on the correct `$PORT`.
+
+---
+
+## Alternative: Using a Procfile
+If you prefer, you can add a `Procfile` to the root directory:
+```
+web: bash render_start.sh
+```
+If this is present, Render will automatically detect it and use it for the web process.
 
 ---
 
